@@ -1,0 +1,24 @@
+# Estimation du prix d'une option put sur le cacao
+
+# Hypothèses pour le calcul
+prix_sous_jacent = 10500  # prix du cacao en avril 2024 (en USD par tonne)
+strike_price = 9000  # prix d'exercice de l'option put
+volatilite_annuelle = 0.6  # estimation de la volatilité annuelle
+maturite = 60/365  # maturité de 2 mois en années
+
+# Modèle de Black-Scholes pour le calcul du prix de l'option put
+import numpy as np
+from scipy.stats import norm
+
+def black_scholes_put(S, K, T, r, sigma):
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    put_price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+    return put_price
+
+# Taux d'intérêt (hypothétique)
+r = 0.05
+
+# Calcul du prix de l'option put
+prix_option_put = black_scholes_put(prix_sous_jacent, strike_price, maturite, r, volatilite_annuelle)
+print(prix_option_put)

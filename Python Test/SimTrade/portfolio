@@ -1,0 +1,57 @@
+import pandas as pd 
+import matplotlib.pyplot as plt
+from scipy.stats import norm, skewnorm, kurtosis
+
+# Import necessary libraries
+import numpy as np
+
+# Example data: Returns for a hypothetical investment
+np.random.seed(42)  # Fixer une graine pour reproductibilité
+data = np.random.randint(0, 11, 100)  # 100 entiers aléatoires entre 0 et 10  # Arbitrary example
+
+# Step 1: Calculate mean
+mean = np.mean(data)
+
+# Step 2: Calculate skewness using the formula
+n = len(data)  # Number of data points
+deviations = np.array(data) - mean  # Deviations from mean
+
+# Numerator: Sum of cubed deviations
+numerator = np.sum(deviations**3) / n
+
+# Denominator: (Variance ^ 3/2)
+variance = np.sum(deviations**2) / n
+denominator = variance**(3/2)
+
+std = np.sqrt(variance)
+
+# Skewness
+skewness = numerator / denominator
+
+print(mean, variance, skewness)
+
+from scipy.stats import shapiro, kstest
+
+# Effectuer le test de normalité de Shapiro-Wilk
+shapiro_test = shapiro(data)
+
+# Effectuer le test de Kolmogorov-Smirnov (test de normalité par rapport à une distribution normale)
+ks_test = kstest(data, 'norm', args=(mean, np.std(data)))
+
+print(shapiro_test, ks_test)
+
+
+# Tracer la distribution
+plt.figure(figsize=(10, 6))
+plt.bar(range(len(data)), data, color='skyblue', label='Data Points')
+plt.axhline(mean, color='red', linestyle='--', linewidth=2, label=f'Mean = {mean:.2f}')
+
+# Ajouter des personnalisations
+plt.title("Distribution of 100 Random Numbers Between 0 and 10", fontsize=16)
+plt.xlabel("Data Index", fontsize=12)
+plt.ylabel("Value", fontsize=12)
+plt.legend(fontsize=10)
+plt.grid(alpha=0.3)
+
+# Afficher le graphique
+plt.show()

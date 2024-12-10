@@ -1,0 +1,58 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Lire le fichier Excel
+excel_path = r"C:\Users\Stanislas Michel\OneDrive\Bureau\Python Test\SimTrade\crypto_data2.xlsx"
+df = pd.read_excel(excel_path, sheet_name=None)  # Charge toutes les feuilles dans un dictionnaire
+
+# Poids du portefeuille
+weights = {
+    'AGRS': 0.102, 'enqAI': 0.078, 'ETH': 0.077, 'RIO': 0.068, 'PENDLE': 0.066,
+    'GLQ': 0.061, 'ONDO': 0.057, 'FET': 0.054, 'INJ': 0.049, 'GFI': 0.046,
+    'TAO': 0.042, 'ALPH': 0.037, 'RNDR': 0.039, 'CKB': 0.033, 'THETA': 0.029,
+    'MPL': 0.024, 'NEAR': 0.026, 'UNI': 0.021, 'AAVE': 0.02, 'OCTA': 0.019,
+    'ICP': 0.019, 'AVAX': 0.018, 'LINK': 0.013
+}
+
+# Liste des cryptomonnaies à analyser
+cryptos_in_portfolio = list(weights.keys())
+
+# Calcul des rendements journaliers pour chaque cryptomonnaie
+daily_returns = {}
+
+for crypto_name, data in df.items():
+    if 'close' in data.columns:
+        data['daily_return'] = data['close'].pct_change()
+        daily_returns[crypto_name] = data['daily_return']
+
+# Créer un DataFrame des rendements journaliers
+returns_df = pd.DataFrame(daily_returns)
+
+# Calcul de la matrice de bêtas
+beta_matrix = pd.DataFrame(index=cryptos_in_portfolio, columns=cryptos_in_portfolio)
+
+for crypto1 in cryptos_in_portfolio:
+    for crypto2 in cryptos_in_portfolio:
+        # Calcul de la covariance entre les rendements des deux cryptomonnaies
+        covariance = np.cov(returns_df[crypto1][1:], returns_df[crypto2][1:])[0, 1]
+        # Calcul de la variance des rendements de crypto2 (peut être BTC aussi)
+        variance = np.var(returns_df[crypto2][1:])
+        # Calcul du bêta
+        beta_matrix.loc[crypto1, crypto2] = covariance / variance
+
+# Affichage de la matrice de bêtas avec Matplotlib
+plt.figure(figsize=(12, 8))
+plt.imshow(beta_matrix.astype(float), cmap='coolwarm', interpolation='nearest')
+plt.colorbar(label='Bêta')
+
+# Ajouter des labels pour les axes
+plt.xticks(np.arange(len(cryptos_in_portfolio)), cryptos_in_portfolio, rotation=90)
+plt.yticks(np.arange(len(cryptos_in_portfolio)), cryptos_in_portfolio)
+
+# Ajouter le titre
+plt.title("Matrice des Bêtas des Cryptomonnaies")
+
+# Afficher la matrice
+plt.tight_layout()
+plt.show()

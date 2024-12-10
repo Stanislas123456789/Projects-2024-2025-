@@ -1,0 +1,17 @@
+# Given data:
+correct_answers = 56
+wrong_answers = 4
+
+# Scoring system
+score_correct = 1  # Right answers score 1 point
+score_wrong = -0.25*(3)  # Wrong answers score -0.25
+score_donotknow = 0  # "I don't know" scores 0, but this doesn't apply in this case
+
+# Calculate total score
+total_score = (correct_answers * score_correct) + (wrong_answers * score_wrong)
+
+# Convert to a grade on 20
+grade_out_of_20 = (total_score / (60)) * 20  # max score of 55 points for 20 out of 20
+
+print(total_score, grade_out_of_20)
+print((50/60)*20)

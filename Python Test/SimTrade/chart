@@ -1,0 +1,33 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Lire le fichier Excel
+excel_path = r"C:\Users\Stanislas Michel\OneDrive\Bureau\Python Test\SimTrade\crypto_data2.xlsx"
+df = pd.read_excel(excel_path, sheet_name=None)  # Charge toutes les feuilles dans un dictionnaire
+
+# Demander à l'utilisateur de saisir le nom de la cryptomonnaie
+crypto_choice = input("Entrez le nom de la cryptomonnaie que vous souhaitez analyser (ex: BTC, ETH, etc.): ")
+
+# Vérifier si la cryptomonnaie choisie existe dans les feuilles du fichier Excel
+if crypto_choice in df.keys():
+    # Sélectionner les données de la cryptomonnaie choisie
+    data = df[crypto_choice]
+
+    # Vérifier si la colonne 'close' existe
+    if 'close' in data.columns:
+        # Calcul des rendements journaliers
+        data['daily_return'] = data['close'].pct_change()*100
+
+        # Affichage des rendements journaliers
+        plt.figure(figsize=(10, 6))
+        plt.plot(data["time"], data['daily_return'], label=f"Rendement Journalier - {crypto_choice}")
+        plt.title(f"Rendement Journalier de {crypto_choice}")
+        plt.xlabel("Date")
+        plt.ylabel("Rendement")
+        plt.legend()
+        plt.show()
+    else:
+        print(f"La colonne 'close' est manquante dans les données de {crypto_choice}.")
+else:
+    print(f"Le nom de la cryptomonnaie '{crypto_choice}' n'existe pas dans le fichier Excel.")

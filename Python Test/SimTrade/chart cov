@@ -1,0 +1,31 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Lire le fichier Excel
+excel_path = r"C:\Users\Stanislas Michel\OneDrive\Bureau\Python Test\SimTrade\crypto_data2.xlsx"
+df = pd.read_excel(excel_path, sheet_name=None)  # Charge toutes les feuilles dans un dictionnaire
+
+# Liste pour stocker les rendements journaliers de chaque crypto
+daily_returns = {}
+
+# Calcul des rendements journaliers pour chaque cryptomonnaie
+for crypto_name, data in df.items():
+    if 'close' in data.columns:
+        # Calcul des rendements journaliers
+        data['daily_return'] = data['close'].pct_change()
+        # Ajouter les rendements journaliers dans le dictionnaire
+        daily_returns[crypto_name] = data['daily_return']
+
+# Créer un DataFrame des rendements journaliers
+returns_df = pd.DataFrame(daily_returns)
+
+# Calculer la matrice de corrélation
+correlation_matrix = returns_df.corr()
+
+# Visualisation de la matrice de corrélation
+plt.figure(figsize=(12, 8))
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', fmt='.2f', cbar=True, 
+            xticklabels=correlation_matrix.columns, yticklabels=correlation_matrix.columns)
+plt.title("Matrice de Corrélation des Cryptomonnaies")
+plt.show()

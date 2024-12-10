@@ -1,0 +1,263 @@
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.alert import Alert
+
+class SimTradeBot:
+    def __init__(self):
+        chrome_options = Options()
+        chrome_options.add_argument("--start-maximized")
+        service = Service(r"C:\Program Files\Google\chromedriver-win64\chromedriver.exe")
+        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        self.wait = WebDriverWait(self.driver, 10)
+        
+        # Configuration des paramètres clés
+        self.news_history = []
+        self.last_news_text = ""
+        
+        # Paramètres de trading
+        self.base_quantity = 5000  # Quantité de base pour le market making
+        self.max_position = 15000  # Position maximale autorisée
+        self.news_position = 10000  # Position prise sur les news importantes
+        
+    def login(self):
+        try:
+            self.driver.get("https://www.simtrade.fr/CCMP/ESSEC_BBA/site/certifications/certifications_presentation.php?n=C&c=CERTIF2_US_FINANCE_ESSEC_BBA_2024_09&p=ESSEC2&lang=us#")
+            
+            login_button = self.wait.until(EC.element_to_be_clickable((By.LINK_TEXT, 'LOG IN')))
+            login_button.click()
+            
+            username = self.wait.until(EC.presence_of_element_located((By.ID, 'nom_v3')))
+            username.send_keys('B00805678@essec.edu')
+            
+            password = self.wait.until(EC.presence_of_element_located((By.ID, 'motdepasse_v3')))
+            password.send_keys('@Stan1244')
+            
+            submit = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@value='Log in']")))
+            submit.click()
+            return True
+        except Exception as e:
+            print(f"Erreur de login: {e}")
+            return False
+
+    def access_simulation(self):
+        try:
+            contests_link = self.wait.until(
+                EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, 'simulations/simulations_presentation_certificat.php') and contains(., 'SIMULATION')]"))
+            )
+            contests_link.click()
+            
+            simulation_link = self.wait.until(
+                EC.element_to_be_clickable((By.XPATH, "//a[contains(@href, 'simulations/simulations_presentation.php') and contains(., 'Trends')]"))
+            )
+            simulation_link.click()
+            
+            launch_button = self.wait.until(
+                EC.element_to_be_clickable((By.XPATH, "//input[@value='Launch the simulation']"))
+            )
+            launch_button.click()
+            return True
+        except Exception as e:
+            print(f"Erreur d'accès simulation: {e}")
+            return False
+
+    def get_news(self):
+        try:
+            news_container = self.wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "#simulation_bandeau_Defilant .tickercontainer"))
+            )
+            news_text = news_container.text.strip()
+            
+            if news_text and news_text != self.last_news_text:
+                self.last_news_text = news_text
+                print(f"Nouvelle news: {news_text}")
+                return news_text
+            return None
+        except Exception as e:
+            print(f"Erreur lecture news: {e}")
+            return None
+
+    def analyze_news(self, news_text):
+        if not news_text or news_text in self.news_history:
+            return 0
+            
+        news_text = news_text.lower()
+        self.news_history.append(news_text)
+        
+        # News très positives (profit élevé)
+        if any(x in news_text for x in ["profits of m€180", "profits of m€175", "eu gdp: +1%"]):
+            return 2  # Signal très positif
+            
+        # News positives
+        if any(x in news_text for x in ["recommandation to 'buy'", "target price of €14", "target price of €13"]):
+            return 1  # Signal positif
+            
+        # News très négatives
+        if any(x in news_text for x in ["hacking", "profits of m€100", "profits of m€125", "eu gdp: -1%"]):
+            return -2  # Signal très négatif
+            
+        # News négatives
+        if any(x in news_text for x in ["recommandation to 'sell'", "target price of €9", "target price of €8"]):
+            return -1  # Signal négatif
+            
+        return 0
+
+    def get_market_data(self):
+        try:
+            table = self.wait.until(EC.presence_of_element_located((By.XPATH, "//div[@id='simulation_tradingCO']//table")))
+            rows = table.find_elements(By.TAG_NAME, "tr")[1:-1]
+            
+            for row in rows:
+                cols = row.find_elements(By.TAG_NAME, "td")
+                bid_price = float(cols[2].text.replace(',', '.'))
+                ask_price = float(cols[3].text.replace(',', '.'))
+                return bid_price, ask_price
+                
+            return None, None
+        except Exception:
+            return None, None
+
+    def place_order(self, side, price, quantity):
+        try:
+            # Remplir quantité
+            quantity_field = self.wait.until(EC.presence_of_element_located((By.ID, 'montant_ordre')))
+            quantity_field.clear()
+            quantity_field.send_keys(str(quantity))
+            
+            # Sélectionner ordre limite
+            order_type = Select(self.wait.until(EC.presence_of_element_located((By.ID, 'type_ordre'))))
+            order_type.select_by_value('LIM')
+            
+            # Remplir prix
+            price_field = self.wait.until(EC.presence_of_element_located((By.ID, 'limite_ordre')))
+            price_field.clear()
+            price_field.send_keys(str(price))
+            
+            # Cliquer sur le bouton
+            button_value = "Buy" if side == "buy" else "Sell"
+            order_button = self.wait.until(
+                EC.element_to_be_clickable((By.XPATH, f"//input[@value='{button_value}']"))
+            )
+            order_button.click()
+            time.sleep(0.1)
+            return True
+        except Exception as e:
+            print(f"Erreur placement ordre: {e}")
+            return False
+
+    def execute_news_trade(self, signal):
+        try:
+            # Annuler tous les ordres existants
+            self.cancel_all_orders()
+            time.sleep(0.2)
+            
+            # Récupérer les prix du marché
+            bid_price, ask_price = self.get_market_data()
+            if not bid_price or not ask_price:
+                return
+                
+            # Calculer la quantité en fonction de l'intensité du signal
+            quantity = self.news_position * abs(signal)
+            
+            if signal > 0:  # Signal d'achat
+                # Place plusieurs ordres agressifs à l'achat
+                for i in range(3):
+                    price = ask_price + (i * 0.05)  # Augmente le prix pour être sûr d'être exécuté
+                    self.place_order("buy", price, quantity // 3)
+            else:  # Signal de vente
+                # Place plusieurs ordres agressifs à la vente
+                for i in range(3):
+                    price = bid_price - (i * 0.05)  # Diminue le prix pour être sûr d'être exécuté
+                    self.place_order("sell", price, quantity // 3)
+                    
+            print(f"Ordres news exécutés - Signal: {signal}, Quantité: {quantity}")
+            
+        except Exception as e:
+            print(f"Erreur exécution news trade: {e}")
+
+    def cancel_all_orders(self):
+        try:
+            # Annuler ordres d'achat
+            buy_cancel = self.driver.find_elements(By.XPATH, "//input[@value='Cancel' and @title='Cancel all buy orders']")
+            if buy_cancel:
+                buy_cancel[0].click()
+                time.sleep(0.1)
+                try:
+                    alert = Alert(self.driver)
+                    alert.accept()
+                except:
+                    pass
+            
+            # Annuler ordres de vente
+            sell_cancel = self.driver.find_elements(By.XPATH, "//input[@value='Cancel' and @title='Cancel all sell orders']")
+            if sell_cancel:
+                sell_cancel[0].click()
+                time.sleep(0.1)
+                try:
+                    alert = Alert(self.driver)
+                    alert.accept()
+                except:
+                    pass
+        except Exception as e:
+            print(f"Erreur annulation ordres: {e}")
+
+    def market_making(self):
+        try:
+            bid_price, ask_price = self.get_market_data()
+            if not bid_price or not ask_price:
+                return
+                
+            spread = ask_price - bid_price
+            new_bid = bid_price - (spread * 0.2)  # Légèrement en dessous du meilleur bid
+            new_ask = ask_price + (spread * 0.2)  # Légèrement au-dessus du meilleur ask
+            
+            self.place_order("buy", new_bid, self.base_quantity)
+            self.place_order("sell", new_ask, self.base_quantity)
+            
+        except Exception as e:
+            print(f"Erreur market making: {e}")
+
+    def run(self):
+        if not self.login() or not self.access_simulation():
+            return
+            
+        print("Bot démarré - Surveillance des news et market making")
+        
+        last_mm_update = time.time()
+        mm_interval = 5  # Intervalle de mise à jour du market making
+        
+        while True:
+            try:
+                # 1. Vérification prioritaire des news
+                news = self.get_news()
+                if news:
+                    signal = self.analyze_news(news)
+                    if signal != 0:
+                        self.execute_news_trade(signal)
+                        time.sleep(1)  # Pause pour laisser les ordres s'exécuter
+                
+                # 2. Market making périodique
+                current_time = time.time()
+                if current_time - last_mm_update >= mm_interval:
+                    self.cancel_all_orders()
+                    time.sleep(0.2)
+                    self.market_making()
+                    last_mm_update = current_time
+                
+                time.sleep(0.2)  # Petite pause pour éviter de surcharger le CPU
+                
+            except KeyboardInterrupt:
+                print("\nArrêt du bot par l'utilisateur")
+                break
+            except Exception as e:
+                print(f"Erreur générale: {e}")
+                time.sleep(1)
+
+if __name__ == "__main__":
+    bot = SimTradeBot()
+    bot.run()

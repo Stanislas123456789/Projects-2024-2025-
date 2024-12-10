@@ -1,0 +1,644 @@
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import *
+import numpy as np
+from selenium.webdriver.common.alert import Alert
+
+class SimTradeBot:
+    def __init__(self):
+        chrome_options = Options()
+        chrome_options.add_argument("--start-maximized")
+        service = Service(r"C:\Program Files\Google\chromedriver-win64\chromedriver.exe")
+        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        self.wait = WebDriverWait(self.driver, 10)
+        
+        # Trading parameters
+        self.base_quantity = 5000
+        self.max_position = 10000
+        self.min_spread = 0.02
+        self.position_scale = 0.02
+        
+        # News parameters
+        self.news_check_interval = 0.5
+        self.news_impact_duration = 10
+        self.current_news_bias = 0
+        self.news_history = []
+        self.last_news_time = 0
+        
+        # Price tracking
+        self.price_history = []
+        self.volatility = 0
+        
+        # Impact parameters
+        self.strong_impact = 10
+        self.medium_impact = 5
+        self.weak_impact = 5
+        
+        # Order parameters
+        self.order_levels = 5
+        self.price_step = 0.02
+        self.max_spread_mult = 5
+
+    def login(self):
+        try:
+            self.driver.get("https://www.simtrade.fr/CCMP/ESSEC_BBA/site/certifications/certifications_presentation.php?n=C&c=CERTIF2_US_FINANCE_ESSEC_BBA_2024_09&p=ESSEC2&lang=us#")
+            
+            login_button = self.wait.until(
+                EC.element_to_be_clickable((By.LINK_TEXT, 'LOG IN'))
+            )
+            login_button.click()
+            
+            username = self.wait.until(
+                EC.presence_of_element_located((By.ID, 'nom_v3'))
+            )
+            username.send_keys('B00805678@essec.edu')
+            
+            password = self.wait.until(
+                EC.presence_of_element_located((By.ID, 'motdepasse_v3'))
+            )
+            password.send_keys('@Stan1244')
+            
+            submit = self.wait.until(
+                EC.element_to_be_clickable((By.XPATH, "//input[@value='Log in']"))
+            )
+            submit.click()
+            return True
+            
+        except Exception as e:
+            print(f"Login error: {e}")
+            return False
+
+    def access_simulation(self):
+        try:
+            contests_link = self.wait.until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//a[contains(@href, 'simulations/simulations_presentation_certificat.php') and contains(., 'SIMULATION')]")
+                )
+            )
+            contests_link.click()
+            
+            simulation_link = self.wait.until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//a[contains(@href, 'simulations/simulations_presentation.php') and contains(., 'Trends')]")
+                )
+            )
+            simulation_link.click()
+            
+            launch_button = self.wait.until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//input[@value='Launch the simulation']")
+                )
+            )
+            launch_button.click()
+            return True
+            
+        except Exception as e:
+            print(f"Simulation access error: {e}")
+            return False
+
+        max_retries = 3
+        retry_delay = 1
+        
+        for attempt in range(max_retries):
+            try:
+                # Navigate to Market Making simulation with explicit waits
+                contests_link = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable(
+                        (By.XPATH, "//a[contains(@href, 'simulations/simulations_presentation_certificat.php') and contains(., 'SIMULATION')]")
+                    )
+                )
+                contests_link.click()
+                
+                
+                simulation_link = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable(
+                        (By.XPATH, "//a[contains(@href, 'simulations/simulations_presentation.php') and contains(., 'Trends')]")
+                    )
+                )
+                simulation_link.click()
+                
+                time.sleep(2)
+                
+                launch_button = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable(
+                        (By.XPATH, "//input[@value='Launch the simulation']")
+                    )
+                )
+                launch_button.click()
+                
+                time.sleep(3)
+                return True
+                
+            except Exception as e:
+                print(f"Simulation access attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    raise
+
+    def safe_parse_int(self, text):
+        """Safely parse integer values that might contain spaces or other characters"""
+        try:
+            # Remove spaces and any other non-numeric characters except minus sign
+            cleaned = ''.join(c for c in text if c.isdigit() or c == '-')
+            return int(cleaned)
+        except (ValueError, TypeError):
+            return 0
+            
+    def safe_parse_float(self, text):
+        """Safely parse float values that might contain spaces or other characters"""
+        try:
+            # Remove spaces and convert comma to dot if present
+            cleaned = text.replace(' ', '').replace(',', '.')
+            return float(cleaned)
+        except (ValueError, TypeError):
+            return 0.0
+
+
+    def get_news(self):
+        """Récupère les dernières news depuis le bandeau défilant de SimTrade"""
+        max_retries = 3
+        retry_delay = 0.2
+        
+        for attempt in range(max_retries):
+            try:
+                # Attendre et localiser le bandeau défilant
+                news_container = WebDriverWait(self.driver, 5).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "#simulation_bandeau_Defilant .tickercontainer"))
+                )
+                
+                # Obtenir le texte des nouvelles
+                news_text = news_container.text.strip()
+                
+                # Vérifier si le texte est différent du dernier lu
+                if news_text and news_text != self.last_news_text:
+                    self.last_news_text = news_text
+                    print(f"Nouvelle news détectée: {news_text}")
+                    return news_text
+                
+                return None
+                
+            except StaleElementReferenceException:
+                print(f"Élément périmé, tentative {attempt + 1}/{max_retries}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                    
+            except Exception as e:
+                print(f"Erreur lors de la lecture des news (tentative {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                    
+        return None
+
+    def analyze_news(self, news_text):
+        """Enhanced news analysis with immediate trading execution"""
+        if not news_text or news_text in self.news_history:
+            return 0
+            
+        # Nettoyer et normaliser le texte des news
+        news_text = news_text.strip().lower()
+        
+        self.news_history.append(news_text)
+        if len(self.news_history) > 10:
+            self.news_history.pop(0)
+        
+        news_bias = 0
+        
+        # Strong positive news (buy signals)
+        strong_positive = [
+            "EasyPlane: profits of M€180",
+            "EasyPlane: profits of M€175",
+            "EU GDP: +1%"
+        ]
+        
+        # Medium positive news
+        medium_positive = [
+            "raises his recommandation to 'Buy'",
+            "changes her recommandation to 'Buy'",
+            "target price of €14",
+            "target price of €13",
+            "EasyPlane: beginning of the GA"
+        ]
+        
+        # Strong negative news
+        strong_negative = [
+            "hacking of the booking website",
+            "EasyPlane: profits of M€100",
+            "EasyPlane: profits of M€125",
+            "EasyPlane: profits of M€150",
+            "EU GDP: +0%",
+            "EU GDP: -1%"
+        ]
+        
+        # Weak negative news
+        weak_negative = [
+            "raises his recommandation to 'Sell'",
+            "changes her recommandation to 'Sell'",
+            "target price of €9"
+            "target price of €8"
+        ]
+        
+        # Analyse des news avec une correspondance plus souple
+        for phrase in strong_positive:
+            if phrase in news_text:
+                news_bias = self.strong_impact
+                print(f"Signal d'achat fort détecté: {news_text}")
+                break
+                
+        if news_bias == 0:
+            for phrase in medium_positive:
+                if phrase in news_text:
+                    news_bias = self.medium_impact
+                    print(f"Signal d'achat moyen détecté: {news_text}")
+                    break
+                    
+        if news_bias == 0:
+            for phrase in strong_negative:
+                if phrase in news_text:
+                    news_bias = -self.strong_impact
+                    print(f"Signal de vente fort détecté: {news_text}")
+                    break
+                    
+        if news_bias == 0:
+            for phrase in weak_negative:
+                if phrase in news_text:
+                    news_bias = -self.weak_impact
+                    print(f"Signal de vente faible détecté: {news_text}")
+                    break
+        
+        if news_bias != 0:
+            best_bid, best_ask, _, _ = self.get_order_book_data()
+            if best_bid and best_ask:
+                current_price = (best_bid + best_ask) / 2
+                self.execute_news_strategy(news_bias, current_price)
+        
+        self.last_news_time = time.time()
+        self.current_news_bias = news_bias
+        return news_bias
+
+    def execute_news_strategy(self, news_bias, current_price):
+        """
+        Execute aggressive news-based trading strategy with multiple orders
+        """
+        if news_bias == 0:
+            return
+            
+        total_target_position = self.base_quantity * abs(news_bias)
+        position = self.get_position()
+        
+        # Calculate remaining position to achieve
+        remaining_position = total_target_position - abs(position)
+        if remaining_position <= 0:
+            print(f"Target position already achieved: {position}")
+            return
+            
+        # Calculate quantity per order
+        qty_per_order = remaining_position // self.order_levels
+        
+        # Get current order book
+        best_bid, best_ask, bids, asks = self.get_order_book_data()
+        if not (best_bid and best_ask):
+            return
+            
+        # Cancel existing orders before placing new ones
+        self.cancel_all_orders()
+        time.sleep(0.5)  # Brief pause to ensure cancellation
+        
+        if news_bias > 0:  # Bullish news
+            print(f"Executing aggressive buy strategy for news impact {news_bias}")
+            # Place multiple buy orders at increasingly aggressive prices
+            for i in range(self.order_levels):
+                # Calculate aggressive buy price above current ask
+                price_increment = self.price_step * (i + 1) * self.max_spread_mult
+                order_price = best_ask + price_increment
+                
+                # Place larger orders for more immediate levels
+                level_quantity = int(qty_per_order * (1 + i/self.order_levels))
+                
+                print(f"Placing buy order: Price={order_price}, Quantity={level_quantity}")
+                self.place_order("buy", order_price, level_quantity)
+                time.sleep(0.1)  # Brief pause between orders
+                
+        else:  # Bearish news
+            print(f"Executing aggressive sell strategy for news impact {news_bias}")
+            # Place multiple sell orders at increasingly aggressive prices
+            for i in range(self.order_levels):
+                # Calculate aggressive sell price below current bid
+                price_decrement = self.price_step * (i + 1) * self.max_spread_mult
+                order_price = best_bid - price_decrement
+                
+                # Place larger orders for more immediate levels
+                level_quantity = int(qty_per_order * (1 + i/self.order_levels))
+                
+                print(f"Placing sell order: Price={order_price}, Quantity={level_quantity}")
+                self.place_order("sell", order_price, level_quantity)
+                time.sleep(0.1)  # Brief pause between orders
+    
+
+    def get_order_book_data(self):
+        max_retries = 3
+        retry_delay = 0.2
+        
+        for attempt in range(max_retries):
+            try:
+                # Wait for table to be present and visible
+                table = WebDriverWait(self.driver, 5).until(
+                    EC.presence_of_element_located((By.XPATH, "//div[@id='simulation_tradingCO']//table"))
+                )
+                
+                # Get a fresh reference to rows
+                rows = WebDriverWait(table, 5).until(
+                    EC.presence_of_all_elements_located((By.TAG_NAME, "tr"))
+                )[1:-1]  # Skip header and footer
+                
+                bids = []
+                asks = []
+                
+                for row in rows:
+                    # Get fresh references to cells for each row
+                    columns = WebDriverWait(row, 5).until(
+                        EC.presence_of_all_elements_located((By.TAG_NAME, "td"))
+                    )
+                    
+                    bid_price = self.safe_parse_float(columns[2].text.strip())
+                    ask_price = self.safe_parse_float(columns[3].text.strip())
+                    bid_qty = self.safe_parse_int(columns[1].text.strip())
+                    ask_qty = self.safe_parse_int(columns[4].text.strip())
+                    
+                    if bid_price > 0 and bid_qty > 0:
+                        bids.append((bid_price, bid_qty))
+                    if ask_price > 0 and ask_qty > 0:
+                        asks.append((ask_price, ask_qty))
+                
+                # Sort orders
+                bids.sort(reverse=True)
+                asks.sort()
+                
+                return (
+                    bids[0][0] if bids else None,
+                    asks[0][0] if asks else None,
+                    bids,
+                    asks
+                )
+                
+            except StaleElementReferenceException:
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    print("Max retries reached for getting order book data")
+                    return None, None, [], []
+                    
+            except Exception as e:
+                print(f"Error getting order book data: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    return None, None, [], []
+
+    def calculate_volatility(self, price):
+        self.price_history.append(price)
+        if len(self.price_history) > 10:  # Keep last 10 prices
+            self.price_history.pop(0)
+            # Calculate rolling volatility
+            returns = [(self.price_history[i] / self.price_history[i-1] - 1) 
+                      for i in range(1, len(self.price_history))]
+            self.volatility = sum([abs(r) for r in returns]) / len(returns)
+
+    def adjust_spreads(self, best_bid, best_ask, position):
+        mid_price = (best_bid + best_ask) / 2
+        self.calculate_volatility(mid_price)
+        
+        # Base spread adjusts with volatility
+        dynamic_spread = max(self.min_spread, self.volatility * 2)
+        
+        # Position-based spread adjustment
+        position_factor = abs(position) / self.max_position
+        if position > 0:  # Long position - widen bid spread
+            bid_spread = dynamic_spread * (1 + position_factor * 4)
+            ask_spread = dynamic_spread * (1 - position_factor * 0.25)
+        else:  # Short position - widen ask spread
+            bid_spread = dynamic_spread * (1 - position_factor * 0.4)
+            ask_spread = dynamic_spread * (1 + position_factor * 25)
+            
+        return bid_spread, ask_spread
+
+    def calculate_order_quantity(self, position):
+        position_factor = abs(position) / self.max_position
+        adjusted_quantity = int(self.base_quantity * (1 + position_factor * 2))
+        return max(100, adjusted_quantity)
+
+    def place_order(self, side, price, quantity):
+        max_retries = 3
+        retry_delay = 0.2
+        
+        for attempt in range(max_retries):
+            try:
+                quantity_field = WebDriverWait(self.driver, 5).until(
+                    EC.presence_of_element_located((By.ID, 'montant_ordre'))
+                )
+                quantity_field.clear()
+                quantity_field.send_keys(str(quantity))
+                
+                order_type = Select(WebDriverWait(self.driver, 5).until(
+                    EC.presence_of_element_located((By.ID, 'type_ordre'))
+                ))
+                order_type.select_by_value('LIM')
+                
+                price_field = WebDriverWait(self.driver, 5).until(
+                    EC.presence_of_element_located((By.ID, 'limite_ordre'))
+                )
+                price_field.clear()
+                price_field.send_keys(str(price))
+                
+                button_value = "Buy" if side == "buy" else "Sell"
+                order_button = WebDriverWait(self.driver, 5).until(
+                    EC.element_to_be_clickable(
+                        (By.XPATH, f"//input[@value='{button_value}']")
+                    )
+                )
+                order_button.click()
+                
+                time.sleep(0.2)
+                return True
+                
+            except Exception as e:
+                print(f"Error placing {side} order: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    return False
+
+    def get_position(self):
+        
+        max_retries = 3
+        retry_delay = 0.2
+        
+        for attempt in range(max_retries):
+            try:
+                position_element = WebDriverWait(self.driver, 5).until(
+                    EC.presence_of_element_located((By.ID, 'nb_titres_a_decouvert_html'))
+                )
+                position_text = position_element.text
+                position = self.safe_parse_int(position_text.split(":")[1].strip().replace("+", ""))
+                return position
+            except Exception as e:
+                print(f"Error getting position: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    return 0
+
+    def market_making_strategy(self):
+            last_update_time = time.time()
+            last_news_check = time.time()
+            update_interval = 2
+            
+            while True:
+                try:
+                    current_time = time.time()
+                    
+                    # Vérification des news
+                    if current_time - last_news_check >= self.news_check_interval:
+                        news = self.get_news()
+                        if news:
+                            self.analyze_news(news)
+                        last_news_check = current_time
+                    
+                    # Mise à jour des ordres
+                    if current_time - last_update_time >= update_interval:
+                        best_bid, best_ask, bids, asks = self.get_order_book_data()
+                        position = self.get_position()
+                        
+                        if best_bid and best_ask:
+                            bid_spread, ask_spread = self.adjust_spreads(best_bid, best_ask, position)
+                            bid_price = round(best_bid - bid_spread, 2)
+                            ask_price = round(best_ask + ask_spread, 2)
+                            quantity = self.calculate_order_quantity(position)
+                            
+                            if abs(position) > self.max_position:
+                                if position > 0:
+                                    ask_price = best_bid
+                                    quantity = position // 2
+                                else:
+                                    bid_price = best_ask
+                                    quantity = abs(position) // 2
+                            
+                            self.place_order("buy", bid_price, quantity)
+                            self.place_order("sell", ask_price, quantity)
+                            
+                            print(f"Orders placed - Bid: {bid_price}, Ask: {ask_price}, Position: {position}, Quantity: {quantity}")
+                            last_update_time = current_time
+                    
+                    time.sleep(0.2)
+                    
+                except KeyboardInterrupt:
+                    print("\nBot stopped by user")
+                    break
+                except Exception as e:
+                    print(f"Error in market making strategy: {e}")
+                    time.sleep(1)
+
+    def cancel_all_orders(self):
+        """Annule tous les ordres d'achat et de vente."""
+        try:
+            cancel_buttons = [
+                {"title": "Cancel all buy orders"},
+                {"title": "Cancel all sell orders"}
+            ]
+            for button in cancel_buttons:
+                cancel_btn = self.driver.find_element(
+                    By.XPATH, f"//input[@value='Cancel' and @title='{button['title']}']"
+                )
+                if cancel_btn:
+                    cancel_btn.click()
+                    time.sleep(0.2)
+                    Alert(self.driver).accept()  # Confirme le pop-up de Google
+                    print(f"Orders {button['title']} cancelled.")
+            return True
+        except Exception as e:
+            print(f"Error cancelling orders: {e}")
+            return False
+
+        def market_making_strategy(self):
+            """Stratégie de market making basée sur l'écart de spread et la position actuelle."""
+            try:
+                best_bid, best_ask, bids, asks = self.get_order_book_data()
+                position = self.get_position()
+
+                if best_bid and best_ask:
+                    bid_price = best_bid - 0.01
+                    ask_price = best_ask + 0.01
+                    quantity = self.calculate_order_quantity(position)
+                    
+                    # Limiter les ordres en fonction de la position
+                    if abs(position) > self.max_position:
+                        quantity = position // 2 if position > 0 else abs(position) // 2
+                        bid_price = best_ask if position < 0 else bid_price
+                        ask_price = best_bid if position > 0 else ask_price
+                    
+                    self.place_order("buy", bid_price, quantity)
+                    self.place_order("sell", ask_price, quantity)
+                    print(f"Orders placed - Bid: {bid_price}, Ask: {ask_price}, Quantity: {quantity}")
+
+            except Exception as e:
+                print(f"Error in market making strategy: {e}")
+
+        def run(self):
+            try:
+                # Login et accès à la simulation
+                if not self.login() or not self.access_simulation():
+                    return
+
+            print("Starting market making bot with news strategy...")
+
+            # Boucle principale
+            last_news_check = time.time()
+            last_update_time = time.time()
+
+            while True:
+                current_time = time.time()
+
+                # Vérification des news toutes les 60 secondes
+                if current_time - last_news_check >= self.news_check_interval:
+                    news = self.get_news()
+                    if news:
+                        self.analyze_news(news)
+                    last_news_check = current_time
+
+                # Exécute la stratégie de market making toutes les 2 secondes
+                if current_time - last_update_time >= 2:
+                    self.market_making_strategy()
+                    last_update_time = current_time
+
+                # Annule tous les ordres toutes les 10 secondes
+                if current_time - last_update_time >= 10:
+                    self.cancel_all_orders()
+                    last_update_time = current_time
+
+                time.sleep(0.2)
+        except KeyboardInterrupt:
+            print("\nBot stopped by user")
+        except Exception as e:
+            print(f"Bot error: {e}")
+        finally:
+            self.driver.quit()
+            
+   
+if __name__ == "__main__":
+   
+   
+    bot = SimTradeBot()
+    bot.run()

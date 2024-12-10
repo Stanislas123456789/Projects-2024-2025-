@@ -1,0 +1,50 @@
+import requests
+import pandas as pd
+
+# Clé API (remplacez par votre propre clé API)
+api_key = 'a1e549e92e338563d062549de70491bcc04d075be782d67d69023de0fcb3e40f'
+
+# Fonction pour récupérer les données historiques depuis CryptoCompare
+def get_historical_data(crypto, currency='USD', limit=1000):
+    url = 'https://min-api.cryptocompare.com/data/v2/histoday'
+    params = {
+        'fsym': crypto,
+        'tsym': currency,
+        'limit': limit,
+        'api_key': api_key
+    }
+    response = requests.get(url, params=params)
+    
+    if response.status_code == 200:
+        data = response.json()
+        if 'Data' in data and 'Data' in data['Data']:
+            df = pd.DataFrame(data['Data']['Data'])
+            df['time'] = pd.to_datetime(df['time'], unit='s')
+            df.set_index('time', inplace=True)
+            return df
+        else:
+            print(f"Données historiques non disponibles pour {crypto}.")
+    else:
+        print(f"Erreur pour {crypto}: {response.status_code}")
+    return None
+
+# Liste des cryptomonnaies à analyser
+cryptos_to_analyze = [ "AGRS", "enqAI", "ETH", "RIO", "PENDLE", "GLQ", "ONDO", "FET", 
+    "INJ", "GFI", "TAO", "ALPH", "RNDR", "CKB", "THETA", "MPL", 
+    "NEAR", "UNI", "AAVE", "OCTA", "ICP", "AVAX", "LINK", "BTC"]  # Remplacez cette liste par vos cryptos
+
+# Récupération des données historiques pour chaque cryptomonnaie
+crypto_data = {}
+for crypto in cryptos_to_analyze:
+    crypto_data[crypto] = get_historical_data(crypto)
+
+# Création d'un fichier Excel avec les données
+output_path = 'crypto_data2.xlsx'
+
+with pd.ExcelWriter(output_path) as writer:
+    for crypto, data in crypto_data.items():
+        if data is not None:
+            data.to_excel(writer, sheet_name=crypto)
+            print(f"Les données pour {crypto} ont été ajoutées à l'Excel.")
+        else:
+            print(f"Aucune donnée disponible pour {crypto}.")

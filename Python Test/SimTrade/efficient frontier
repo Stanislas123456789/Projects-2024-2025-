@@ -1,0 +1,57 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Parameters
+R1 = 0.06  # Mean return of stock AA
+R2 = 0.12  # Mean return of stock BB
+sigma1 = 0.18  # Standard deviation of stock AA
+sigma2 = 0.27  # Standard deviation of stock BB
+rho = -0.3  # Correlation between AA and BB
+
+# Global Minimum Variance Portfolio (GMVP) Weights
+numerator = sigma2**2 - rho * sigma1 * sigma2
+denominator = sigma1**2 + sigma2**2 - 2 * rho * sigma1 * sigma2
+w1_gmvp = numerator / denominator
+w2_gmvp = 1 - w1_gmvp
+
+# GMVP Return and Risk
+R_gmvp = w1_gmvp * R1 + w2_gmvp * R2
+sigma_gmvp = np.sqrt(
+    w1_gmvp**2 * sigma1**2 +
+    w2_gmvp**2 * sigma2**2 +
+    2 * w1_gmvp * w2_gmvp * rho * sigma1 * sigma2
+)
+
+# Generate portfolio weights
+weights = np.linspace(0, 1, 100)
+portfolio_returns = []
+portfolio_risks = []
+
+# Calculate portfolio returns and risks for each weight
+for w1 in weights:
+    w2 = 1 - w1
+    portfolio_return = w1 * R1 + w2 * R2
+    portfolio_variance = (
+        w1**2 * sigma1**2 +
+        w2**2 * sigma2**2 +
+        2 * w1 * w2 * rho * sigma1 * sigma2
+    )
+    portfolio_risk = np.sqrt(portfolio_variance)
+    portfolio_returns.append(portfolio_return)
+    portfolio_risks.append(portfolio_risk)
+
+# Plot Efficient Frontier
+plt.figure(figsize=(10, 6))
+plt.plot(portfolio_risks, portfolio_returns, label="Efficient Frontier", color="blue")
+
+# Mark the GMVP
+plt.scatter(sigma_gmvp, R_gmvp, color="red", label="GMVP", zorder=5)
+plt.text(sigma_gmvp, R_gmvp, "  GMVP", fontsize=10, color="red")
+
+# Labels and Title
+plt.title("Efficient Frontier (Two Assets)", fontsize=14)
+plt.xlabel("Risk (Standard Deviation)", fontsize=12)
+plt.ylabel("Return", fontsize=12)
+plt.legend()
+plt.grid(True)
+plt.show()

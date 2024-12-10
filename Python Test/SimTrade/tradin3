@@ -1,0 +1,249 @@
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import *
+
+class SimTradeBot:
+    def __init__(self):
+        chrome_options = Options()
+        chrome_options.add_argument("--start-maximized")
+        service = Service(r"C:\Program Files\Google\chromedriver-win64\chromedriver.exe")
+        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        self.wait = WebDriverWait(self.driver, 10)
+        
+        # Trading parameters
+        self.base_quantity = 2000
+        self.max_position = 5000
+        self.min_spread = 0.03  # Reduced from 0.05
+        self.position_scale = 0.02  # Reduced from 0.01
+        self.price_history = []
+        self.volatility = 0
+     
+    def login(self):
+        try:
+            self.driver.get("https://www.simtrade.fr/CCMP/ESSEC_BBA/site/certifications/certifications_presentation.php?n=C&c=CERTIF2_US_FINANCE_ESSEC_BBA_2024_09&p=ESSEC2&lang=us#")
+            
+            # Wait for and click login button
+            login_button = self.wait.until(EC.element_to_be_clickable((By.LINK_TEXT, 'LOG IN')))
+            login_button.click()
+            
+            # Fill in credentials
+            username = self.wait.until(EC.presence_of_element_located((By.ID, 'nom_v3')))
+            username.send_keys('B00805678@essec.edu')
+            
+            password = self.driver.find_element(By.ID, 'motdepasse_v3')
+            password.send_keys('@Stan1244')
+            
+            # Submit login
+            submit = self.driver.find_element(By.XPATH, "//input[@value='Log in']")
+            submit.click()
+            
+            time.sleep(2)  # Allow time for login to complete
+            
+        except Exception as e:
+            print(f"Login error: {e}")
+            raise
+
+    def access_simulation(self):
+        try:
+            # Navigate to Market Making simulation with explicit waits
+            contests_link = self.wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "//a[contains(@href, 'challenges_presentation_certificat.php') and contains(., 'CONTESTS')]")
+            ))
+            contests_link.click()
+            
+            simulation_link = self.wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "//a[contains(@href, 'CONC_EZP7_US_V7_ESSEC_BBA')]")
+            ))
+            simulation_link.click()
+            
+            time.sleep(2)  # Wait for page to load
+            
+            launch_button = self.wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "//input[@value='Launch the simulation']")
+            ))
+            launch_button.click()
+            
+            time.sleep(3)  # Wait for simulation to initialize
+            
+        except Exception as e:
+            print(f"Error accessing simulation: {e}")
+            raise
+
+    def get_order_book_data(self):
+        try:
+            table = self.wait.until(EC.presence_of_element_located(
+                (By.XPATH, "//div[@id='simulation_tradingCO']//table")
+            ))
+            rows = table.find_elements(By.TAG_NAME, "tr")[1:-1]
+            
+            # Get full order book data
+            bids = []
+            asks = []
+            
+            for row in rows:
+                columns = row.find_elements(By.TAG_NAME, "td")
+                bid_price = float(columns[2].text.strip())
+                ask_price = float(columns[3].text.strip())
+                bid_qty = int(columns[1].text.strip())
+                ask_qty = int(columns[4].text.strip())
+                
+                bids.append((bid_price, bid_qty))
+                asks.append((ask_price, ask_qty))
+            
+            # Sort orders
+            bids.sort(reverse=True)
+            asks.sort()
+            
+            return bids[0][0] if bids else None, asks[0][0] if asks else None, bids, asks
+            
+        except Exception as e:
+            print(f"Error getting order book data: {e}")
+            return None, None, [], []
+
+    def calculate_volatility(self, price):
+        self.price_history.append(price)
+        if len(self.price_history) > 10:  # Keep last 10 prices
+            self.price_history.pop(0)
+            # Calculate rolling volatility
+            returns = [(self.price_history[i] / self.price_history[i-1] - 1) 
+                      for i in range(1, len(self.price_history))]
+            self.volatility = sum([abs(r) for r in returns]) / len(returns)
+
+    def adjust_spreads(self, best_bid, best_ask, position):
+        mid_price = (best_bid + best_ask) / 2
+        self.calculate_volatility(mid_price)
+        
+        # Base spread adjusts with volatility
+        dynamic_spread = max(self.min_spread, self.volatility * 2)
+        
+        # Position-based spread adjustment
+        position_factor = abs(position) / self.max_position
+        if position > 0:  # Long position - widen bid spread
+            bid_spread = dynamic_spread * (1 + position_factor * 2)
+            ask_spread = dynamic_spread * (1 - position_factor * 0.5)  # Tighten ask spread
+        else:  # Short position - widen ask spread
+            bid_spread = dynamic_spread * (1 - position_factor * 0.5)  # Tighten bid spread
+            ask_spread = dynamic_spread * (1 + position_factor * 2)
+            
+        return bid_spread, ask_spread
+
+    def calculate_order_quantity(self, position):
+        # Reduce quantity as position grows
+        position_factor = abs(position) / self.max_position
+        adjusted_quantity = int(self.base_quantity * (1 - position_factor * 0.7))
+        return max(100, adjusted_quantity)  # Minimum quantity of 100
+
+    def place_order(self, side, price, quantity):
+        try:
+            quantity_field = self.wait.until(EC.presence_of_element_located((By.ID, 'montant_ordre')))
+            quantity_field.clear()
+            quantity_field.send_keys(str(quantity))
+            
+            order_type = Select(self.wait.until(EC.presence_of_element_located((By.ID, 'type_ordre'))))
+            order_type.select_by_value('LIM')
+            
+            price_field = self.wait.until(EC.presence_of_element_located((By.ID, 'limite_ordre')))
+            price_field.clear()
+            price_field.send_keys(str(price))
+            
+            button_value = "Buy" if side == "buy" else "Sell"
+            order_button = self.wait.until(EC.element_to_be_clickable(
+                (By.XPATH, f"//input[@value='{button_value}']")
+            ))
+            order_button.click()
+            
+            time.sleep(0.2)  # Reduced delay between orders
+            
+        except Exception as e:
+            print(f"Error placing {side} order: {e}")
+
+    def get_position(self):
+        try:
+            position_element = self.wait.until(EC.presence_of_element_located(
+                (By.ID, 'nb_titres_a_decouvert_html')
+            ))
+            position_text = position_element.text
+            position = int(position_text.split(":")[1].strip().replace("+", ""))
+            return position
+        except Exception as e:
+            print(f"Error getting position: {e}")
+            return 0
+
+    def market_making_strategy(self):
+        last_update_time = time.time()
+        update_interval = 2  # Reduced from 3 seconds
+        
+        while True:
+            try:
+                current_time = time.time()
+                
+                if current_time - last_update_time >= update_interval:
+                    # Get market data
+                    best_bid, best_ask, bids, asks = self.get_order_book_data()
+                    position = self.get_position()
+                    
+                    if best_bid and best_ask:
+                        # Calculate dynamic spreads based on volatility and position
+                        bid_spread, ask_spread = self.adjust_spreads(best_bid, best_ask, position)
+                        
+                        # Calculate order prices to be competitive
+                        bid_price = round(best_bid - bid_spread, 2)
+                        ask_price = round(best_ask + ask_spread, 2)
+                        
+                        # Calculate dynamic quantity based on position
+                        quantity = self.calculate_order_quantity(position)
+                        
+                        # Emergency position reduction if needed
+                        if abs(position) > self.max_position:
+                            if position > 0:
+                                # Aggressive sell order to reduce long position
+                                ask_price = best_bid  # Place at current best bid
+                                quantity = position // 2  # Reduce position by half
+                            else:
+                                # Aggressive buy order to reduce short position
+                                bid_price = best_ask  # Place at current best ask
+                                quantity = abs(position) // 2
+                        
+                        # Cancel existing orders and place new ones
+                        self.cancel_all_orders()
+                        time.sleep(0.2)
+                        
+                        self.place_order("buy", bid_price, quantity)
+                        self.place_order("sell", ask_price, quantity)
+                        
+                        print(f"Orders placed - Bid: {bid_price}, Ask: {ask_price}, Position: {position}, Quantity: {quantity}")
+                        last_update_time = current_time
+                
+                time.sleep(0.2)
+                
+            except KeyboardInterrupt:
+                print("\nBot stopped by user")
+                break
+            except Exception as e:
+                print(f"Error in market making strategy: {e}")
+                time.sleep(1)
+
+    def cancel_all_orders(self):
+        # [Cancel orders code remains the same]
+        pass
+
+    def run(self):
+        try:
+            self.login()
+            self.access_simulation()
+            print("Starting improved market making strategy...")
+            self.market_making_strategy()
+        except Exception as e:
+            print(f"Bot error: {e}")
+        finally:
+            self.driver.quit()
+
+if __name__ == "__main__":
+    bot = SimTradeBot()
+    bot.run()

@@ -1,0 +1,38 @@
+import pandas as pd
+import numpy as np
+
+# Lire le fichier Excel
+excel_path = r"C:\Users\Stanislas Michel\OneDrive\Bureau\Python Test\SimTrade\crypto_data2.xlsx"
+df = pd.read_excel(excel_path, sheet_name=None)  # Charge toutes les feuilles dans un dictionnaire
+
+# Fonction pour calculer les rendements journaliers et hebdomadaires
+def add_returns(df):
+    # Assurez-vous que le DataFrame contient une colonne 'close' avec les prix de clôture
+    df['daily_return'] = df['close'].pct_change()  # Rendement journalier
+    df['weekly_return'] = df['close'].pct_change(7)  # Rendement hebdomadaire
+    return df
+
+# Appliquer la fonction à chaque onglet
+for sheet_name, data in df.items():
+    # Ajoutez les rendements journaliers et hebdomadaires
+    df[sheet_name] = add_returns(data)
+
+# Sauvegarder dans un nouveau fichier Excel
+output_path = r"analysis.xlsx"
+with pd.ExcelWriter(output_path) as writer:
+    for sheet_name, data in df.items():
+        data.to_excel(writer, sheet_name=sheet_name)
+
+print(f"Les rendements ont été ajoutés et sauvegardés dans {output_path}")
+
+import matplotlib.pyplot as plt
+
+# Exemple de visualisation des rendements journaliers
+for sheet_name, data in df.items():
+    plt.figure(figsize=(10, 6))
+    plt.plot(data.index, data['daily_return'], label=f"Rendement Journalier - {sheet_name}")
+    plt.title(f"Rendement Journalier de {sheet_name}")
+    plt.xlabel("Date")
+    plt.ylabel("Rendement")
+    plt.legend()
+    plt.show()

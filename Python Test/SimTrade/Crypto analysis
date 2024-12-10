@@ -1,0 +1,200 @@
+import requests
+import pandas as pd
+import numpy as np
+
+# Clé API (remplacez par votre propre clé API)
+api_key = 'a1e549e92e338563d062549de70491bcc04d075be782d67d69023de0fcb3e40f'
+
+# Fonction pour récupérer les données historiques depuis CryptoCompare
+def get_historical_data(crypto, currency='USD', limit=1000):
+    url = 'https://min-api.cryptocompare.com/data/v2/histoday'
+    params = {
+        'fsym': crypto,
+        'tsym': currency,
+        'limit': limit,
+        'api_key': api_key
+    }
+    response = requests.get(url, params=params)
+    
+    if response.status_code == 200:
+        data = response.json()
+        if 'Data' in data and 'Data' in data['Data']:
+            df = pd.DataFrame(data['Data']['Data'])
+            df['time'] = pd.to_datetime(df['time'], unit='s')
+            df.set_index('time', inplace=True)
+            return df
+        else:
+            print(f"Données historiques non disponibles pour {crypto}.")
+    else:
+        print(f"Erreur pour {crypto}: {response.status_code}")
+    return None
+
+# Fonction pour calculer les indicateurs financiers
+def calculate_indicators(df, benchmark_df):
+    def calculate_with_data(df, benchmark_df):
+        # Nettoyage des données : remplacer les cotations à 0 par NaN
+        df['close'].replace(0, np.nan, inplace=True)
+        benchmark_df['close'].replace(0, np.nan, inplace=True)
+
+        # Suppression des lignes avec des valeurs manquantes
+        df = df.dropna(subset=['close'])
+        benchmark_df = benchmark_df.dropna(subset=['close'])
+
+        # Vérifier si les données sont encore disponibles après nettoyage
+        if df.empty or benchmark_df.empty:
+            print("Données insuffisantes après nettoyage.")
+            return {
+                'Annual Returns': np.nan,
+                'Annual Volatility': np.nan,
+                'Sharpe Ratio': np.nan,
+                'Sortino Ratio': np.nan,
+                'VaR 95%': np.nan,
+                'Beta': np.nan,
+                'Alpha': np.nan,
+                'Comment': 'Données insuffisantes pour les calculs après nettoyage',
+                'First Available Date': np.nan,
+                'Days Available': np.nan
+            }
+        
+        # Période utilisée pour les calculs
+        period_start_date = df.index.min().strftime('%Y-%m-%d')
+        period_end_date = df.index.max().strftime('%Y-%m-%d')
+        days_available = (df.index.max() - df.index.min()).days
+        
+        # Calcul des rendements quotidiens
+        returns = df['close'].pct_change().dropna()
+        benchmark_returns = benchmark_df['close'].pct_change().dropna()
+        
+        # Gestion des valeurs infinies ou NaN
+        if returns.empty or benchmark_returns.empty:
+            return {
+                'Annual Returns': np.nan,
+                'Annual Volatility': np.nan,
+                'Sharpe Ratio': np.nan,
+                'Sortino Ratio': np.nan,
+                'VaR 95%': np.nan,
+                'Beta': np.nan,
+                'Alpha': np.nan,
+                'Comment': f'Données insuffisantes pour les calculs, période utilisée: {period_start_date} à {period_end_date}',
+                'First Available Date': period_start_date,
+                'Days Available': days_available
+            }
+        
+        # Calcul des rendements annuels
+        annual_returns = returns.mean() * 365
+        
+        # Calcul de la volatilité annuelle
+        annual_volatility = returns.std() * np.sqrt(365)
+        
+        # Gestion des valeurs infinies ou division par zéro
+        sharpe_ratio = annual_returns / annual_volatility if annual_volatility != 0 else np.nan
+        
+        # Calcul du Sortino Ratio
+        negative_returns = returns[returns < 0]
+        sortino_ratio = annual_returns / (negative_returns.std() * np.sqrt(365)) if not negative_returns.empty else np.nan
+        
+        # Calcul de la VaR à 95%
+        var_95 = returns.quantile(0.05)
+        
+        # Calcul du Beta et Alpha
+        covariance = returns.cov(benchmark_returns)
+        benchmark_variance = benchmark_returns.var()
+        beta = covariance / benchmark_variance if benchmark_variance != 0 else np.nan
+        
+        risk_free_rate = 0.05
+        market_return = benchmark_returns.mean() * 365
+        alpha = annual_returns - (risk_free_rate + beta * (market_return - risk_free_rate)) if not np.isnan(beta) else np.nan
+        
+        return {
+            'Annual Returns': annual_returns,
+            'Annual Volatility': annual_volatility,
+            'Sharpe Ratio': sharpe_ratio,
+            'Sortino Ratio': sortino_ratio,
+            'VaR 95%': var_95,
+            'Beta': beta,
+            'Alpha': alpha,
+            'Comment': f'Période utilisée: {period_start_date} à {period_end_date}',
+            'First Available Date': period_start_date,
+            'Days Available': days_available
+        }
+
+    if df is None or benchmark_df is None or df.empty or benchmark_df.empty:
+        print("Données manquantes pour le calcul des indicateurs.")
+        return {
+            'Annual Returns': np.nan,
+            'Annual Volatility': np.nan,
+            'Sharpe Ratio': np.nan,
+            'Sortino Ratio': np.nan,
+            'VaR 95%': np.nan,
+            'Beta': np.nan,
+            'Alpha': np.nan,
+            'Comment': 'Données insuffisantes pour les calculs',
+            'First Available Date': np.nan,
+            'Days Available': np.nan
+        }
+
+    # Limiter les données aux 365 derniers jours
+    df = df.iloc[-730:]
+    benchmark_df = benchmark_df.iloc[-730:]
+
+    # Calcul initial des indicateurs
+    indicators = calculate_with_data(df, benchmark_df)
+
+    # Si les résultats contiennent des valeurs infinies ou NaN, recalculer avec les données disponibles
+    if np.isinf(indicators['Annual Returns']) or np.isnan(indicators['Annual Returns']):
+        full_df = df  # Utiliser toutes les données disponibles
+        period_start_date = full_df.index.min().strftime('%Y-%m-%d')
+        period_end_date = full_df.index.max().strftime('%Y-%m-%d')
+        days_available = (full_df.index.max() - full_df.index.min()).days
+        indicators = calculate_with_data(full_df, benchmark_df)
+        indicators['Comment'] = f'Données insuffisantes, calculs effectués sur la période: {period_start_date} à {period_end_date}'
+        indicators['First Available Date'] = period_start_date
+        indicators['Days Available'] = days_available
+
+    return indicators
+
+# Lire les données depuis le fichier Excel
+excel_path = r"C:\Users\Stanislas Michel\OneDrive\Bureau\Python Test\Book1.xlsx"
+df_invest = pd.read_excel(excel_path)
+
+# Afficher les noms des colonnes pour vérifier
+print("Colonnes du DataFrame :")
+print(df_invest.columns)
+
+# Assurez-vous que la colonne contenant les symboles des cryptos est correctement identifiée
+crypto_column = 'Name'  # Remplacez par le nom correct de la colonne si nécessaire
+
+# Liste des cryptomonnaies à analyser
+cryptos_to_analyze = df_invest[crypto_column].dropna().str.strip().str.upper().unique()
+
+# Définir la cryptomonnaie de référence (benchmark)
+benchmark_crypto = 'BTC'
+
+# Récupération des données historiques pour la cryptomonnaie de référence
+benchmark_data = get_historical_data(benchmark_crypto)
+
+# Récupération des données historiques pour chaque cryptomonnaie à analyser
+crypto_data = {}
+for crypto in cryptos_to_analyze:
+    crypto_data[crypto] = get_historical_data(crypto)
+
+# Calcul des indicateurs financiers
+indicators_data = {}
+for crypto, data in crypto_data.items():
+    indicators_data[crypto] = calculate_indicators(data, benchmark_data)
+
+# Convertir les résultats en DataFrame
+indicators_df = pd.DataFrame(indicators_data).T
+
+# Fusionner toutes les données historiques dans un seul DataFrame
+historical_data = pd.concat(crypto_data, axis=1)
+
+# Chemin de sauvegarde des résultats
+output_path = r'C:\Users\Smichel\Desktop\Master\templates\Crypto_indicatorsVF2ans.xlsx'
+try:
+    with pd.ExcelWriter(output_path) as writer:
+        historical_data.to_excel(writer, sheet_name='Historical Data')
+        indicators_df.to_excel(writer, sheet_name='Indicators')
+    print(f"Les indicateurs financiers ont été sauvegardés dans {output_path}")
+except PermissionError:
+    print(f"Erreur de permission : Impossible de sauvegarder le fichier dans {output_path}. Vérifiez les permissions du fichier.")

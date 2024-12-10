@@ -1,0 +1,81 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+import pandas as pd
+import time
+
+# Initialiser le driver Chrome (assurez-vous que chromedriver est dans votre PATH)
+driver = webdriver.Chrome()
+
+# Accéder à la page web
+url = 'https://marketchameleon.com/Calendar/CompanyEvents'
+driver.get(url)
+
+# Attendre que la page se charge correctement
+driver.implicitly_wait(10)  # Attendre jusqu'à 10 secondes pour que la page se charge complètement
+
+# Trouver le tableau
+try:
+    table = driver.find_element(By.TAG_NAME, 'table')
+    rows = table.find_elements(By.TAG_NAME, 'tr')
+except Exception as e:
+    print("Erreur lors de la récupération du tableau : ", e)
+    driver.quit()
+    exit()
+
+# Vérifier le nombre de lignes trouvées
+print(f"Nombre de lignes trouvées dans le tableau : {len(rows)}")
+
+# Extraction des données de chaque ligne
+data = []
+for row in rows[1:]:  # Exclure l'en-tête
+    cols = row.find_elements(By.TAG_NAME, 'td')
+    
+    # Vérifier le contenu de la ligne
+    print(f"Contenu de la ligne : {[col.text for col in cols]}")  # Afficher les colonnes de chaque ligne
+
+    # Vérifier que la ligne contient suffisamment de colonnes
+    if len(cols) >= 8:  # On s'assure qu'il y a au moins 8 colonnes
+        symbol = cols[0].text.strip()
+        name = cols[1].text.strip()
+        event = cols[2].text.strip()
+        event_date = cols[3].text.strip()
+        price_change = cols[4].text.strip().replace('%', '')  # Enlever le symbole de %
+        implied_straddle = cols[5].text.strip().replace('%', '')  # Enlever le symbole de %
+        option_volume = cols[6].text.strip().replace(',', '')  # Enlever les virgules
+        market_cap = cols[7].text.strip().replace('B', 'e9').replace('M', 'e6')  # Convertir les milliards et millions
+        
+        # Ajouter les données à la liste
+        data.append([symbol, name, event, event_date, price_change, implied_straddle, option_volume, market_cap])
+    else:
+        print(f"Ligne ignorée car elle ne contient pas assez de colonnes : {row.text}")
+
+# Convertir en DataFrame pour une analyse plus facile
+df = pd.DataFrame(data, columns=['Symbol', 'Name', 'Event', 'Event Date', 'Price Change', 'Implied Straddle', 'Option Volume', 'Market Cap'])
+
+# Fermer le navigateur
+driver.quit()
+
+# Vérifier si le DataFrame est vide
+if df.empty:
+    print("Aucune donnée extraite.")
+else:
+    # Convertir les colonnes numériques au bon format
+    df['Implied Straddle'] = pd.to_numeric(df['Implied Straddle'], errors='coerce')
+    df['Option Volume'] = pd.to_numeric(df['Option Volume'], errors='coerce')
+    df['Price Change'] = pd.to_numeric(df['Price Change'], errors='coerce')
+
+    # Filtrer pour les événements avec une volatilité implicite supérieure à un seuil, par exemple 10%
+    threshold_iv = 10.0
+    high_iv_stocks = df[df['Implied Straddle'] > threshold_iv]
+
+    # Afficher les actions avec une forte volatilité implicite
+    print("Actions avec une forte volatilité implicite (>10%) :")
+    print(high_iv_stocks[['Symbol', 'Name', 'Implied Straddle', 'Price Change']])
+
+    # Exemple simplifié de scoring basé sur l'IV et le volume d'options
+    df['Score'] = df['Implied Straddle'] * df['Option Volume']
+
+    # Trier par score pour détecter les meilleures opportunités
+    top_opportunities = df.sort_values(by='Score', ascending=False)
+    print("Top opportunités :")
+    print(top_opportunities[['Symbol', 'Name', 'Score']].head())

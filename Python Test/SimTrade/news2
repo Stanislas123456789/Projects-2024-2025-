@@ -1,0 +1,227 @@
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+import numpy as np
+
+
+class SimTradeBot:
+    def __init__(self):
+        chrome_options = Options()
+        chrome_options.add_argument("--start-maximized")
+        service = Service(r"C:\Program Files\Google\chromedriver-win64\chromedriver.exe")
+        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+        self.wait = WebDriverWait(self.driver, 10)
+        
+        # Trading parameters
+        self.base_quantity = 5000
+        self.max_position = 100
+        self.position_scale = 0.02
+        self.price_history = []
+        self.volatility = 0
+        self.market_trend = 0
+        
+        # News parameters
+        self.last_news_time = time.time()
+        self.news_check_interval = 1  # Vérifier plus fréquemment
+        self.news_impact_duration = 20  # Impact réduit à 3 minutes pour être plus réactif
+        self.current_news_bias = 0
+        self.news_history = []  # Pour tracker les news déjà vues
+        
+        # Impact parameters
+        self.strong_impact = 5  # Fort impact positif
+        self.medium_impact = 10  # Impact positif moyen
+        self.weak_impact = 1    # Faible impact positif
+
+    def login(self):
+        try:
+            self.driver.get("https://www.simtrade.fr/CCMP/ESSEC_BBA/site/certifications/certifications_presentation.php?n=C&c=CERTIF2_US_FINANCE_ESSEC_BBA_2024_09&p=ESSEC2&lang=us#")
+            
+            # Wait for and click login button
+            login_button = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.LINK_TEXT, 'LOG IN'))
+            )
+            login_button.click()
+            
+            # Fill in credentials
+            username = WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((By.ID, 'nom_v3'))
+            )
+            username.clear()
+            username.send_keys('B00805678@essec.edu')
+            
+            password = WebDriverWait(self.driver, 5).until(
+                EC.presence_of_element_located((By.ID, 'motdepasse_v3'))
+            )
+            password.clear()
+            password.send_keys('@Stan1244')
+            
+            # Submit login
+            submit = WebDriverWait(self.driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, "//input[@value='Log in']"))
+            )
+            submit.click()
+            
+            time.sleep(2)
+            print("Login successful")
+            return True
+        except Exception as e:
+            print(f"Login failed: {e}")
+            return False
+
+    def analyze_news(self, news_text):
+        """Analyse the news and return a bias value."""
+        if not news_text or news_text in self.news_history:
+            return 0
+        
+        self.news_history.append(news_text)
+        if len(self.news_history) > 10:  # Garder seulement les 10 dernières news
+            self.news_history.pop(0)
+        
+        news_bias = 0
+        
+        # Strong positive news (buy signals)
+        if any(phrase in news_text for phrase in [
+            "raises his recommandation to 'Buy'",
+            "changes her recommandation to 'Buy'",
+            "target price of €14",
+            "target price of €13"
+        ]):
+            news_bias = self.strong_impact
+            print(f"Strong buy signal detected: {news_text}")
+        
+        # Medium positive news (earnings or macro data)
+        elif "profits of M€180" in news_text and "consensus: profits of M€150" in news_text:
+            news_bias = self.medium_impact
+            print(f"Positive earnings surprise detected: {news_text}")
+        
+        # Negative event (sell signals)
+        elif "hacking of the booking website" in news_text:
+            news_bias = -self.strong_impact
+            print(f"Negative event detected: {news_text}")
+        
+        self.last_news_time = time.time()
+        self.current_news_bias = news_bias
+        return news_bias
+
+    def adjust_orders_for_news(self, base_quantity, position):
+        """Adjust the order quantity based on the news bias."""
+        current_time = time.time()
+        time_since_news = current_time - self.last_news_time
+        
+        if time_since_news < self.news_impact_duration and self.current_news_bias != 0:
+            # Impact adjustment
+            impact_factor = np.exp(-3 * time_since_news / self.news_impact_duration)
+            news_quantity_adjustment = int(base_quantity * impact_factor * abs(self.current_news_bias))
+            
+            # Adjust buying/selling quantities based on the news
+            if self.current_news_bias > 0:
+                buy_quantity = int(base_quantity * (1 + impact_factor * self.current_news_bias))
+                sell_quantity = int(base_quantity * (1 - impact_factor * self.current_news_bias * 0.5))
+            else:
+                buy_quantity = int(base_quantity * (1 + impact_factor * self.current_news_bias * 0.5))
+                sell_quantity = int(base_quantity * (1 - impact_factor * self.current_news_bias))
+            
+            # Adjust based on current position
+            position_ratio = position / self.max_position
+            if position_ratio > 0.5 and self.current_news_bias > 0:
+                buy_quantity = int(buy_quantity * (1 - position_ratio))
+            elif position_ratio < -0.5 and self.current_news_bias < 0:
+                sell_quantity = int(sell_quantity * (1 + position_ratio))
+            
+            return buy_quantity, sell_quantity
+        
+        return base_quantity, base_quantity
+
+    def place_order(self, side, price, quantity):
+        """Place a buy or sell order."""
+        try:
+            quantity_field = WebDriverWait(self.driver, 5).until(
+                EC.presence_of_element_located((By.ID, 'montant_ordre'))
+            )
+            quantity_field.clear()
+            quantity_field.send_keys(str(quantity))
+            
+            price_field = WebDriverWait(self.driver, 5).until(
+                EC.presence_of_element_located((By.ID, 'limite_ordre'))
+            )
+            price_field.clear()
+            price_field.send_keys(str(price))
+            
+            button_value = "Buy" if side == "buy" else "Sell"
+            order_button = WebDriverWait(self.driver, 5).until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, f"//input[@value='{button_value}']")
+                )
+            )
+            order_button.click()
+            print(f"{side.capitalize()} order placed at {price} for {quantity} units")
+            return True
+        except Exception as e:
+            print(f"Error placing {side} order: {e}")
+            return False
+
+    def get_position(self):
+        """Get the current position of the user."""
+        try:
+            position_element = WebDriverWait(self.driver, 5).until(
+                EC.presence_of_element_located((By.ID, 'nb_titres_a_decouvert_html'))
+            )
+            position_text = position_element.text
+            position = int(position_text.split(":")[1].strip().replace("+", ""))
+            return position
+        except Exception as e:
+            print(f"Error getting position: {e}")
+            return 0
+
+    def market_making_strategy(self):
+        last_update_time = time.time()
+        
+        while True:
+            try:
+                current_time = time.time()
+                
+                # Check for news every so often
+                if current_time - self.last_news_time >= self.news_check_interval:
+                    news_text = self.read_news()  # You'd need to implement reading news
+                    self.analyze_news(news_text)
+
+                if current_time - last_update_time >= 1:  # Place orders every second
+                    position = self.get_position()
+                    best_bid, best_ask = self.get_order_book_data()  # To be implemented
+                    bid_spread, ask_spread = self.adjust_spreads(best_bid, best_ask, position)
+                    bid_price = best_bid - bid_spread
+                    ask_price = best_ask + ask_spread
+                    
+                    # Adjust order sizes based on position and news
+                    buy_quantity, sell_quantity = self.adjust_orders_for_news(self.base_quantity, position)
+                    
+                    self.place_order("buy", bid_price, buy_quantity)
+                    self.place_order("sell", ask_price, sell_quantity)
+                    
+                    last_update_time = current_time
+                
+                time.sleep(0.2)
+            except KeyboardInterrupt:
+                print("\nBot stopped by user")
+                break
+            except Exception as e:
+                print(f"Error in market making strategy: {e}")
+                time.sleep(1)
+
+    def run(self):
+        try:
+            self.login()
+            print("Starting market making strategy...")
+            self.market_making_strategy()
+        except Exception as e:
+            print(f"Bot error: {e}")
+        finally:
+            self.driver.quit()
+
+if __name__ == "__main__":
+    bot = SimTradeBot()
+    bot.run()

@@ -1,0 +1,40 @@
+import pandas as pd
+import numpy as np
+
+# Lire le fichier Excel
+excel_path = r"C:\Users\Stanislas Michel\OneDrive\Bureau\Python Test\SimTrade\crypto_data2.xlsx"
+df = pd.read_excel(excel_path, sheet_name=None)  # Charge toutes les feuilles dans un dictionnaire
+
+# Poids du portefeuille
+weights = {
+    'AGRS': 0.102, 'enqAI': 0.078, 'ETH': 0.077, 'RIO': 0.068, 'PENDLE': 0.066,
+    'GLQ': 0.061, 'ONDO': 0.057, 'FET': 0.054, 'INJ': 0.049, 'GFI': 0.046,
+    'TAO': 0.042, 'ALPH': 0.037, 'RNDR': 0.039, 'CKB': 0.033, 'THETA': 0.029,
+    'MPL': 0.024, 'NEAR': 0.026, 'UNI': 0.021, 'AAVE': 0.02, 'OCTA': 0.019,
+    'ICP': 0.019, 'AVAX': 0.018, 'LINK': 0.013
+}
+
+# Liste des cryptomonnaies à analyser
+cryptos_in_portfolio = list(weights.keys())
+
+# Calcul des rendements journaliers pour chaque cryptomonnaie
+daily_returns = {}
+
+for crypto_name, data in df.items():
+    if 'close' in data.columns:
+        data['daily_return'] = data['close'].pct_change()
+        daily_returns[crypto_name] = data['daily_return']
+
+# Créer un DataFrame des rendements journaliers
+returns_df = pd.DataFrame(daily_returns)
+
+# Calcul du rendement du portefeuille
+portfolio_return = sum(returns_df[crypto] * weights[crypto] for crypto in cryptos_in_portfolio)
+
+# Calcul du bêta du portefeuille par rapport à BTC
+covariance = np.cov(portfolio_return[1:], returns_df['BTC'][1:])[0, 1]  # Covariance entre le portefeuille et BTC
+variance = np.var(returns_df['BTC'][1:])  # Variance des rendements de BTC
+
+beta_portfolio = covariance / variance
+
+print(f"Le bêta du portefeuille par rapport à BTC est : {beta_portfolio:.4f}")

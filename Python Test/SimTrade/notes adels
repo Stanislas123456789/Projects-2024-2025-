@@ -1,0 +1,19 @@
+import matplotlib.pyplot as plt
+
+# Données des notes d'Adele
+sujets = ['Français (80%)', 'Dictée (77%)', 'Grammaire (A+)', 'Maths (TB)', 'Évaluation Maths (A+)']
+notes = [80, 77, 90, 100, 90]  # A+ et TB sont convertis en pourcentages
+
+# Création du graphique
+plt.figure(figsize=(10, 6))
+plt.bar(sujets, notes, color=['red', 'orange', 'green', 'lightblue', 'blue'])
+plt.ylim(0, 100)
+
+# Titre et labels
+plt.title("Notes d'Adele en CM2")
+plt.xlabel("Sujets")
+plt.ylabel("Notes (en pourcentage)")
+plt.grid(axis='y')
+
+# Affichage du graphique
+plt.show()

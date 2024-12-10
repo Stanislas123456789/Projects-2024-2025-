@@ -1,0 +1,47 @@
+# Trouver les champs et remplir le formulaire
+
+# Champ montant
+montant_ordre_field = driver.find_element(By.ID, 'montant_ordre')
+montant_ordre_field.send_keys('100')  # Exemple de montant
+
+# Champ quantité
+quantite_ordre_field = driver.find_element(By.ID, 'qte_ordre')
+quantite_ordre_field.send_keys('10')  # Exemple de quantité
+
+# Sélectionner le type d'ordre
+type_ordre_dropdown = Select(driver.find_element(By.ID, 'type_ordre'))
+type_ordre_dropdown.select_by_value('LIM')  # Exemple : Limit order
+
+# Cliquer sur le bouton 'Buy'
+buy_button = driver.find_element(By.XPATH, "//input[@value='Buy']")
+buy_button.click()
+
+# Attendre pour voir le résultat (optionnel)
+import time
+time.sleep(5)
+
+
+# Récupérer l'heure depuis l'élément HTML
+time_element = driver.find_element(By.ID, 'heure_timeline')
+current_time = time_element.text.split(": ")[1]  # On récupère juste l'heure après "Time: "
+print(f"Heure actuelle : {current_time}")
+
+# Passer un ordre limite au début
+def passer_ordre_limite():
+    cash_disponible = float(driver.find_element(By.ID, 'montant_cash_disponible').get_attribute('value'))
+    if cash_disponible > 0:
+        driver.find_element(By.ID, 'montant_ordre').clear()  # Vider le champ
+        driver.find_element(By.ID, 'montant_ordre').send_keys('9.57')  # Prix limite
+        
+        driver.find_element(By.ID, 'qte_ordre').clear()  # Vider le champ
+        driver.find_element(By.ID, 'qte_ordre').send_keys(str(cash_disponible))  # Saisir le montant
+
+        type_ordre_dropdown = Select(driver.find_element(By.ID, 'type_ordre'))
+        type_ordre_dropdown.select_by_value('LIM')  # Limit order
+        
+        buy_button = driver.find_element(By.XPATH, "//input[@value='Buy']")
+        buy_button.click()
+        print(f"Ordre limite passé pour {cash_disponible} € à 9.57 €.")
+
+# Appeler la fonction pour passer l'ordre limite
+passer_ordre_limite()

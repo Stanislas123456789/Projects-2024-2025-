@@ -1,0 +1,92 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import minimize
+
+# Paramètres des actifs (exemple pour 5 actifs)
+# Ces valeurs devraient être adaptées à tes propres données
+r = np.array([0.06, 0.12, 0.08, 0.07, 0.05])  # Rendements moyens des actifs
+sigma = np.array([0.18, 0.27, 0.22, 0.20, 0.15])  # Volatilités des actifs
+corr_matrix = np.array([[1.0, -0.3, 0.2, 0.3, 0.1],
+                        [-0.3, 1.0, -0.1, 0.2, 0.3],
+                        [0.2, -0.1, 1.0, 0.4, 0.3],
+                        [0.3, 0.2, 0.4, 1.0, 0.4],
+                        [0.1, 0.3, 0.3, 0.4, 1.0]])  # Matrice de corrélation
+
+# Calcul de la matrice de covariance
+cov_matrix = np.outer(sigma, sigma) * corr_matrix
+
+# Fonction pour calculer le rendement du portefeuille
+def portfolio_return(weights):
+    return np.sum(weights * r)
+
+# Fonction pour calculer la variance du portefeuille
+def portfolio_variance(weights):
+    return np.dot(weights.T, np.dot(cov_matrix, weights))
+
+# Fonction à minimiser (la variance)
+def objective_function(weights):
+    return portfolio_variance(weights)
+
+# Contrainte que la somme des poids doit être égale à 1
+def constraint_sum_weights(weights):
+    return np.sum(weights) - 1
+
+# Fonction pour calculer les poids pour un rendement cible donné
+def calculate_optimal_weights_for_target_return(target_return):
+    # Initialisation des poids (égaux pour chaque actif)
+    n = len(r)
+    initial_weights = np.ones(n) / n
+    
+    # Définir les contraintes
+    constraints = [
+        {'type': 'eq', 'fun': constraint_sum_weights},  # Les poids doivent somme à 1
+        {'type': 'eq', 'fun': lambda w: portfolio_return(w) - target_return}  # Le rendement doit être égal à target_return
+    ]
+    
+    # Résoudre le problème d'optimisation
+    result = minimize(objective_function, initial_weights, constraints=constraints)
+    
+    # Si l'optimisation réussit, retourner les poids
+    if result.success:
+        return result.x
+    else:
+        raise ValueError("L'optimisation a échoué.")
+
+# Demander à l'utilisateur le rendement cible
+target_return = float(input("Entrez le rendement cible du portefeuille (en décimal, ex: 0.09 pour 9%) : "))
+
+# Calculer les poids pour le rendement cible
+optimal_weights = calculate_optimal_weights_for_target_return(target_return)
+
+# Calculer les rendements et variances pour différents rendements
+target_returns = np.linspace(min(r), max(r), 100)
+portfolio_variances = []
+
+for target in target_returns:
+    weights = calculate_optimal_weights_for_target_return(target)
+    portfolio_variances.append(portfolio_variance(weights))
+
+portfolio_stdevs = np.sqrt(portfolio_variances)
+
+# Afficher la frontière efficiente
+plt.figure(figsize=(10, 6))
+plt.plot(portfolio_stdevs, target_returns, label="Frontière Efficiente", color='b')
+
+# Afficher les poids sur la frontière
+plt.scatter(np.sqrt(portfolio_variance(optimal_weights)), target_return, color='r', label='Poids optimaux pour rendement cible')
+
+# Afficher les points des actifs individuels pour avoir une idée des rendements/volatilités
+plt.scatter(sigma, r, color='g', label="Actifs individuels")
+
+# Ajouter des labels et une légende
+plt.title('Frontière Efficiente et Poids Optimaux')
+plt.xlabel('Risque (Volatilité)')
+plt.ylabel('Rendement')
+plt.legend()
+
+plt.show()
+
+# Afficher les poids pour le rendement cible
+print(f"Les poids optimaux pour un rendement cible de {target_return * 100}% sont :")
+for i, weight in enumerate(optimal_weights):
+    print(f"Actif {i+1}: {weight * 100:.2f}%")

@@ -1,0 +1,56 @@
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report
+from sklearn.preprocessing import StandardScaler
+
+# Simuler vos données historiques ici (vous devez remplacer cela par de vraies données historiques)
+data = {
+    "Symbol": ["EWTX", "ED", "CATX", "UTHR", "GSAT", "LAUR", "SSNC", "TECH", "CAG", "WMT"],
+    "Price Change": [3.6, 1.5, 1.0, 1.0, 0.9, 0.8, 0.8, 0.5, 0.5, 0.4],
+    "Option Volume": [350, 289, 3, 7, 563, 3, 2, 1211, 2203, 81041],
+    "Option Implied Straddle": [9.7, 2.7, 11.7, 4.3, 6.3, 3.7, 3.7, 5.6, 1.9, 1.9],
+    "Market Cap": [2.7e9, 35.5e9, 893.9e6, 15.7e9, 2.2e9, 2.4e9, 18.1e9, 11.7e9, 14.0e9, 638.7e9],
+    "Price Increased": [1, 1, 0, 1, 1, 0, 0, 1, 1, 1]  # 1 si l'action a monté, 0 sinon
+}
+
+df = pd.DataFrame(data)
+
+# Séparer les caractéristiques (features) et la cible (target)
+X = df[["Price Change", "Option Volume", "Option Implied Straddle", "Market Cap"]]
+y = df["Price Increased"]
+
+# Diviser les données en ensemble d'entraînement et de test
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Normaliser les données (pour certains modèles, cela peut améliorer la performance)
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+
+# Modèle Random Forest
+clf = RandomForestClassifier(n_estimators=100, random_state=42)
+clf.fit(X_train, y_train)
+
+# Faire des prédictions sur l'ensemble de test
+y_pred = clf.predict(X_test)
+
+# Évaluer la performance
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Accuracy: {accuracy}")
+print("Classification Report:\n", classification_report(y_test, y_pred))
+
+# Simuler les données des événements de demain (ou les importer)
+df_tomorrow = pd.DataFrame({
+    "Price Change": [3.6, 1.5, 1.0, 0.9],  # Remplir avec de vraies valeurs
+    "Option Volume": [350, 289, 563, 563],
+    "Option Implied Straddle": [9.7, 2.7, 6.3, 6.3],
+    "Market Cap": [2.7e9, 35.5e9, 2.2e9, 2.2e9]
+})
+
+# Normaliser les nouvelles données
+df_tomorrow = scaler.transform(df_tomorrow)
+
+# Prédire avec le modèle entraîné
+predictions = clf.predict(df_tomorrow)
+print("Prédictions pour les actions de demain:", predictions)

@@ -1,0 +1,54 @@
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+import time
+
+# Configurer ChromeDriver
+chrome_options = Options()
+chrome_options.add_argument("--start-maximized")  # Maximise la fenêtre de Chrome
+
+# Chemin vers votre chromedriver
+service = Service(r"C:\Program Files\Google\chromedriver-win64\chromedriver.exe") 
+
+# Démarrer Chrome avec Selenium
+driver = webdriver.Chrome(service=service, options=chrome_options)
+
+# Accéder à l'URL de la simulation
+driver.get("https://www.simtrade.fr/CCMP/ESSEC_BBA/site/certifications/certifications_presentation.php?n=C&c=CERTIF2_US_FINANCE_ESSEC_BBA_2024_09&p=ESSEC2&lang=us#")
+
+# Attendre quelques secondes pour que la page se charge
+time.sleep(3)
+
+# Cliquer sur le bouton "LOG IN"
+login_button = driver.find_element(By.LINK_TEXT, 'LOG IN')  # Utilisation de l'élément textuel
+login_button.click()
+
+# Attendre la redirection vers la page de connexion
+time.sleep(3)
+
+# Renseigner l'adresse e-mail et le mot de passe pour se connecter
+email_field = driver.find_element(By.ID, 'nom_v3')  # Remplacer par l'ID réel
+password_field = driver.find_element(By.ID, 'motdepasse_v3')  # Remplacer par l'ID réel
+
+email_field.send_keys('B00805678@essec.edu')  # Remplacer par votre email
+password_field.send_keys('@Stan1244')  # Remplacer par votre mot de passe
+
+# Cliquer sur le bouton de connexion
+submit_button = driver.find_element(By.XPATH, "//input[@value='Log in']")  
+submit_button.click()
+
+# Attendre la redirection vers la simulation
+time.sleep(5)
+
+# Accéder à l'URL de la simulation
+driver.get("https://www.simtrade.fr/CCMP/ESSEC_BBA/site/challenges/challenges_presentation.php?n=C&c=CONC_BPZ7_US_V6_ESSEC_BBA")
+
+# Exemple d'interaction : cliquer sur un bouton pour commencer la simulation
+start_button = driver.find_element(By.ID, 'start-button')  # Remplacer par l'ID correct
+start_button.click()
+
+# Attendre un peu pour que la page charge
+time.sleep(3)
+
+
