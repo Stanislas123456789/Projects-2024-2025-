@@ -101,12 +101,12 @@ class SimTradeBot:
             username = self.wait.until(
                 EC.presence_of_element_located((By.ID, 'nom_v3'))
             )
-            username.send_keys('B00805678@essec.edu')
+            username.send_keys('@essec.edu')
             
             password = self.wait.until(
                 EC.presence_of_element_located((By.ID, 'motdepasse_v3'))
             )
-            password.send_keys('@Stan1244')
+            password.send_keys('')
             
             submit = self.wait.until(
                 EC.element_to_be_clickable((By.XPATH, "//input[@value='Log in']"))
