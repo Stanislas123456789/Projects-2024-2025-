@@ -17,7 +17,7 @@
 | 🏆 Hackathon                              | 🧠 Project                                | 📍 Where          | 📅 When       |
 |------------------------------------------|-------------------------------------------|-------------------|---------------|
 | [ManusAI Hack](https://lu.ma/01jaf7pr?tk=ahZgom)        | *AI Agent for Prospection Campaigns*      | Maison des Mortiers (Paris, France)         | Apr 2025     |
-| [ManusAI Hack]((https://lu.ma/shun5uky))                  | *Organiser*           | ESSEC (Paris, France)         | Apr 2025      |
+| [From LLMs to Agentic AI](https://lu.ma/shun5uky)                 | *Organiser*           | ESSEC (Paris, France)         | Apr 2025      |
 | [SUI x BSA Student Hackathon](https://sui-x-bsa-student-hackathon-v.devfolio.co/) | *Web3-powered dating app that fosters genuine connections*      | EPFL (Lausane, Swizerland)     | Oct 2024      |
 | [HackinDau DeFi Hackathon](https://dauphine.psl.eu/dauphine/media-et-communication/article/hackindau-hackathon-blockchain-2024-de-la-chaire-fintech-et-kryptosphere)  | *ZK Crosschain Collateral Tool*           | Dauphine (Paris, France)         | Sep 2024      |
 
