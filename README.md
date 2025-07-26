@@ -5,9 +5,10 @@
 
 ## About Me  
 - Double Degree Student @ **ESSEC (Finance)** & **FGV Rio (AI / ML)**  
-- Building at the intersection of **AI & Web3**
-- Board Member @ **Unaite** - community federating the best AI societies in France (YC, OpenAI, MistralAI, Perplexity) 
-- ex President @ **Kryptosphere ESSEC** — largest Web3 community in Europe
+- Building in AI
+- Co-Founder @ [**EuroTech Federation**](https://www.linkedin.com/company/eurotech-federation/?viewAsMember=true) : the first deeptech community bringing together the best European builders and reseachers.
+- Board Member @ [**Unaite**](https://www.linkedin.com/company/federation-unaite/posts/?feedView=all) - Group of artificial intelligence clubs (X, CS, HEC, ESSEC) 
+- ex President @ [**Kryptosphere ESSEC**](https://www.linkedin.com/company/kryptosphere/posts/?feedView=all) — largest Web3 community in Europe
 
 ---
 
@@ -15,11 +16,10 @@
 
 | 🏆 Hackathon                              | 🧠 Project                                | 📍 Where          | 📅 When       |
 |------------------------------------------|-------------------------------------------|-------------------|---------------|
-| ManusAI Hack                       | *AI Agent for Prospection Campaigns*      | Maison des Mortiers (Paris, France)         | Apr 2025     |
-| From LLMs to Agentic AI Hack                 | *Organiser*           | ESSEC (Paris, France)         | Apr 2025      |
+| [ManusAI Hack](https://lu.ma/01jaf7pr?tk=ahZgom)        | *AI Agent for Prospection Campaigns*      | Maison des Mortiers (Paris, France)         | Apr 2025     |
+| [ManusAI Hack]((https://lu.ma/shun5uky))                  | *Organiser*           | ESSEC (Paris, France)         | Apr 2025      |
 | [SUI x BSA Student Hackathon](https://sui-x-bsa-student-hackathon-v.devfolio.co/) | *Web3-powered dating app that fosters genuine connections*      | EPFL (Lausane, Swizerland)     | Oct 2024      |
-| HackinDau DeFi Hackathon                     | *ZK Crosschain Collateral Tool*           | Dauphine (Paris, France)         | Sep 2024      |
-
+| [HackinDau DeFi Hackathon](https://dauphine.psl.eu/dauphine/media-et-communication/article/hackindau-hackathon-blockchain-2024-de-la-chaire-fintech-et-kryptosphere)  | *ZK Crosschain Collateral Tool*           | Dauphine (Paris, France)         | Sep 2024      |
 
 ---
 
@@ -29,13 +29,14 @@
 `Python` · `scikit-learn`· `Pytorch`· `LangChain` · `SQL` · `Git`  · `Move`  · `Solidity`  
 
 **Finance**:  
-Global Macro · Valuation · Derivatives · Risk Models (CAPM, Black-Scholes, etc.)
+Global Macro · Valuation · Derivatives · Risk Models 
 
 **Growth / Product**:  
-GTM Strategy · CRM · Notion · Figma · Cold Outreach Automation  
+GTM · CRM · Notion · Figma   
 
 **Languages**:  
-🇫🇷 French · 🇬🇧 English · GR German · 🇧🇷 Portuguese ·SP Portuguese 
+Fluent - French · English · German 
+B2 - Portuguese · Spanish 
 
 ---
 
